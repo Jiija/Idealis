@@ -31,3 +31,7 @@ Notice how edges weights are growing as new nodes appear. The more particular no
 
 ## Idealis global network
 
+![Global01](attachments/global01.png)
+1. Influence - based on the pagerank algorithm, affects node size (larger nodes have higher influence);
+2. Relevance - based on the number of nodes, reactions, users and so on. "Trendy" nodes have more vibrant color.
+
