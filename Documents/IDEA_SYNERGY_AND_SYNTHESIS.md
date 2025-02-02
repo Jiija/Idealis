@@ -2,4 +2,3 @@ Idealis will essentially create a discrete idea space, which will be represented
 
 Search within the graph for node groups that could be combined to create new idea nodes!
 
-Oh god this is the AGI isn't it???
