@@ -9,6 +9,7 @@ set(CMAKE_INSTALL_PREFIX ${PROJECT_SOURCE_DIR})
 set(CMAKE_C_COMPILER gcc)
 set(CMAKE_CXX_COMPILER g++)
 
-#include_directories(${PROJECT_SOURCE_DIR}/app/Interface)
+include_directories(${PROJECT_SOURCE_DIR}/App/Database)
 
-add_subdirectory(app)
+add_subdirectory(App)
+add_subdirectory(Database)

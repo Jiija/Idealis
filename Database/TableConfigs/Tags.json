@@ -1,0 +1,10 @@
+{
+    "table_name": "Tags",
+    "columns": [
+      { "name": "id", "type": "INTEGER", "primary_key": true, "auto_increment": true },
+      { "name": "name", "type": "TEXT", "not_null": true, "unique": true },
+      { "name": "created_at", "type": "TIMESTAMP", "default": "CURRENT_TIMESTAMP" },
+      { "name": "is_deleted", "type": "BOOLEAN", "default": "FALSE" }
+    ]
+}
+

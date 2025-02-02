@@ -1,0 +1,14 @@
+{
+    "table_name": "IdeaStrengths",
+    "columns": [
+      { "name": "id", "type": "INTEGER", "primary_key": true, "auto_increment": true },
+      { "name": "user_id", "type": "INTEGER", "not_null": true },
+      { "name": "idea_id", "type": "INTEGER", "not_null": true },
+      { "name": "weakness", "type": "TEXT", "not_null": true },
+      { "name": "created_at", "type": "TIMESTAMP", "default": "CURRENT_TIMESTAMP" },
+      { "name": "is_deleted", "type": "BOOLEAN", "default": "FALSE" }
+    ],
+    "constraints": [
+      { "type": "FOREIGN KEY", "columns": ["idea_id"], "references": "Ideas(id)" }
+    ]
+}

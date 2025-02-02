@@ -1,0 +1,8 @@
+{
+    "table_name": "IdeaTag",
+    "columns": [
+      { "name": "idea_id", "type": "INTEGER", "not_null": true },
+      { "name": "tag_id", "type": "INTEGER", "not_null": true },
+      { "name": "is_deleted", "type": "BOOLEAN", "default": "FALSE" }
+    ]
+}
