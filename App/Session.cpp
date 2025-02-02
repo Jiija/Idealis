@@ -3,5 +3,5 @@
 class Session
 {
 private:
-    DatabaseManager dbManager;
+  DatabaseManager dbManager;
 };
