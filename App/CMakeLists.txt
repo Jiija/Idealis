@@ -1,3 +1,7 @@
 add_library(Session STATIC Session.cpp)
 
-target_link_libraries(Session PRIVATE DatabaseManager llama)
+add_library(SemanticEngine STATIC SemanticEngine.cpp)
+
+target_link_libraries(Session PRIVATE DatabaseManager)
+
+target_link_libraries(SemanticEngine PRIVATE llama)
