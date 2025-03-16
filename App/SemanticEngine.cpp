@@ -1,112 +1,168 @@
 #include "SemanticEngine.hpp"
 
+#include "llama.h" // llama.cpp headers
 #include <iostream>
 #include <numeric>
 
-// Constructor: Load the LLM model
-SemanticEngine::SemanticEngine(const std::string& model_path)
+class SemanticEngine::SemanticEngineImpl
 {
-  llama_backend_init();
-  llama_model_params model_params = llama_model_default_params();
-  model = llama_model_load_from_file(model_path.c_str(), model_params);
-
-  if (!model)
+private:
+  llama_model* model;
+  llama_context* ctx;
+  int embedding_size; // Typically 768 for nomic-embed-text-v1.5
+public:
+  SemanticEngineImpl(const std::string& model_path)
   {
-    throw std::runtime_error("Failed to load LLM model.");
+    llama_backend_init();
+    llama_model_params model_params = llama_model_default_params();
+    model = llama_model_load_from_file(model_path.c_str(), model_params);
+
+    if (!model)
+    {
+      throw std::runtime_error("Failed to load LLM model.");
+    }
+
+    // Enable embedding mode
+    llama_context_params ctx_params = llama_context_default_params();
+    ctx_params.embeddings = true;
+    ctx_params.n_ctx = 2048;
+    // ctx_params.
+    // ctx_params.embedding = true;
+    ctx = llama_init_from_model(model, ctx_params);
+
+    if (!ctx)
+    {
+      throw std::runtime_error("Failed to create LLM context.");
+    }
+
+    // Set embedding size based on model (e.g., 768 for nomic-embed-text-v1.5)
+    embedding_size = llama_model_n_embd(model);
   }
 
-  // Enable embedding mode
-  llama_context_params ctx_params = llama_context_default_params();
-  ctx_params.embeddings = true;
-  ctx = llama_init_from_model(model, ctx_params);
-
-  if (!ctx)
+  ~SemanticEngineImpl()
   {
-    throw std::runtime_error("Failed to create LLM context.");
+    llama_free(ctx);
+    llama_model_free(model);
+    llama_backend_free();
   }
 
-  // Set embedding size based on model (e.g., 768 for nomic-embed-text-v1.5)
-  embedding_size = llama_model_n_embd(model);
-}
-
-// Destructor: Clean up resources
-SemanticEngine::~SemanticEngine()
-{
-  llama_free(ctx);
-  llama_model_free(model);
-  llama_backend_free();
-}
-
-// Generate embeddings for a given text
-std::vector<float>
-SemanticEngine::get_embedding(const std::string& text)
-{
-  // Get the model's vocab (llama.cpp does not expose it directly)
-  const llama_vocab* vocab = llama_model_get_vocab(model);
-  if (!vocab)
+  std::vector<float> getEmbedding(const std::string& text,
+                                  const std::string& mode = "clustering")
   {
-    throw std::runtime_error("Failed to retrieve vocab.");
-  }
+    // Get the model's vocab (llama.cpp does not expose it directly)
+    const llama_vocab* vocab = llama_model_get_vocab(model);
+    if (!vocab)
+    {
+      throw std::runtime_error("Failed to retrieve vocab.");
+    }
+    std::string prefixed_text = mode + ": " + text;
 
-  // Prepare token buffer
-  std::vector<llama_token> tokens(text.length() + 2);
-
-  // Tokenize the input text
-  int token_count = llama_tokenize(vocab,
-                                   text.c_str(),
-                                   text.length(),
-                                   tokens.data(),
-                                   tokens.size(),
+    int n_tokens = -llama_tokenize(vocab,
+                                   prefixed_text.c_str(),
+                                   prefixed_text.length(),
+                                   NULL,
+                                   0,
                                    true,
-                                   false);
-  if (token_count < 0)
-  {
-    throw std::runtime_error("Tokenization failed.");
+                                   true);
+    if (n_tokens < 0)
+    {
+      throw std::runtime_error("Tokenization failed.");
+    }
+
+    // Step 2: Allocate space and tokenize
+    std::vector<llama_token> tokens(n_tokens);
+    if (llama_tokenize(vocab,
+                       prefixed_text.c_str(),
+                       prefixed_text.length(),
+                       tokens.data(),
+                       tokens.size(),
+                       true,
+                       true) < 0)
+    {
+      throw std::runtime_error("Tokenization failed.");
+    }
+    // Debug: Print tokenized input
+    // std::cout << "Tokenized input (" << tokens.size() << " tokens): ";
+    // for (auto id : tokens) {
+    //    std::cout << id << " ";
+    //}
+    // std::cout << std::endl;
+
+    llama_batch batch = llama_batch_get_one(tokens.data(), tokens.size());
+    // std::cout << "Batch contains " << batch.n_tokens << " tokens." <<
+    // std::endl;
+    batch.pos = NULL;    // Auto-track token positions
+    batch.seq_id = NULL; // Default sequence ID
+    // Run inference to get embeddings
+    if (llama_model_has_encoder(model) && !llama_model_has_decoder(model))
+    {
+      // encoder-only model
+      if (llama_encode(ctx, batch) < 0)
+      {
+        throw std::runtime_error("failed to encode");
+      }
+    }
+    else if (!llama_model_has_encoder(model) && llama_model_has_decoder(model))
+    {
+      // decoder-only model
+      if (llama_decode(ctx, batch) < 0)
+      {
+        throw std::runtime_error("failed to decode");
+      }
+    }
+    // Retrieve the embedding vector
+    const float* embedding_data = llama_get_embeddings_seq(ctx, 0);
+    return std::vector<float>(embedding_data, embedding_data + embedding_size);
   }
 
-  // Resize tokens to actual size
-  tokens.resize(token_count);
-
-  // Run inference to get embeddings
-  if (llama_decode(ctx, llama_batch_get_one(tokens.data(), tokens.size())))
+  // Compute cosine similarity
+  double cosineSimilarity(const std::vector<float>& A,
+                          const std::vector<float>& B)
   {
-    throw std::runtime_error("Failed to generate embeddings.");
+    double dot_product = 0.0, norm_A = 0.0, norm_B = 0.0;
+
+    for (size_t i = 0; i < A.size(); i++)
+    {
+      dot_product += A[i] * B[i];
+      norm_A += A[i] * A[i];
+      norm_B += B[i] * B[i];
+    }
+
+    return dot_product / (std::sqrt(norm_A) * std::sqrt(norm_B) +
+                          1e-9); // Avoid division by zero
   }
 
-  // Retrieve the embedding vector
-  const float* embedding_data = llama_get_embeddings(ctx);
-  return std::vector<float>(embedding_data, embedding_data + embedding_size);
+  // Compute normalized Euclidean distance
+  double normalizedEuclideanDistance(const std::vector<float>& A,
+                                     const std::vector<float>& B)
+  {
+    double sum = 0.0;
+    for (size_t i = 0; i < A.size(); i++)
+    {
+      sum += (A[i] - B[i]) * (A[i] - B[i]);
+    }
+
+    double euclidean = std::sqrt(sum);
+    return euclidean / std::sqrt(A.size()); // Normalization factor
+  }
+};
+
+SemanticEngine::SemanticEngine(const std::string& model_path)
+  : pImpl{ std::make_unique<SemanticEngineImpl>(model_path) }
+{
 }
 
-// Compute cosine similarity
+SemanticEngine::~SemanticEngine(){};
 double
-SemanticEngine::cosine_similarity(const std::vector<float>& A,
-                                  const std::vector<float>& B)
+SemanticEngine::cosineSimilarity(const Idea& A, const Idea& B)
 {
-  double dot_product = 0.0, norm_A = 0.0, norm_B = 0.0;
-
-  for (size_t i = 0; i < A.size(); i++)
-  {
-    dot_product += A[i] * B[i];
-    norm_A += A[i] * A[i];
-    norm_B += B[i] * B[i];
-  }
-
-  return dot_product / (std::sqrt(norm_A) * std::sqrt(norm_B) +
-                        1e-9); // Avoid division by zero
+  return pImpl->cosineSimilarity(pImpl->getEmbedding(A.getContent()),
+                                 pImpl->getEmbedding(B.getContent()));
 }
 
-// Compute normalized Euclidean distance
 double
-SemanticEngine::normalized_euclidean_distance(const std::vector<float>& A,
-                                              const std::vector<float>& B)
+SemanticEngine::euclideanDistance(const Idea& A, const Idea& B)
 {
-  double sum = 0.0;
-  for (size_t i = 0; i < A.size(); i++)
-  {
-    sum += (A[i] - B[i]) * (A[i] - B[i]);
-  }
-
-  double euclidean = std::sqrt(sum);
-  return euclidean / std::sqrt(A.size()); // Normalization factor
+  return pImpl->normalizedEuclideanDistance(
+    pImpl->getEmbedding(A.getContent()), pImpl->getEmbedding(B.getContent()));
 }

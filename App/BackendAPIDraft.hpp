@@ -54,11 +54,12 @@ class Idea
 public:
   // Calculates semantic distance between ideas; will be done via semantic
   // embeddings like what @DefenderOfBasic did in his project
-  float semanticDistance(Idea&);
+  // float semanticDistance(Idea&);
   void pointOutStrenth(Vote*);
   void pointOutWeakness(Vote*);
   void expound(Vote*);
-
+  const std::string getContent() const { return content; }
+  void setContent(std::string content_) { content = content_; } // for debug
 private:
   std::string name;
   std::string content;
