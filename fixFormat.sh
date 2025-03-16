@@ -1,1 +1,1 @@
-find . -path "./excluded_folder" -prune -o -name "*.cpp" -o -name "*.hpp" | xargs clang-format -i -style=file
+find . -path "./external/*" -prune -o \( -name "*.cpp" -o -name "*.hpp" \) -print | xargs clang-format -i -style=file
